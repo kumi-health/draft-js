@@ -26,11 +26,18 @@ var splitTextIntoTextBlocks = require('splitTextIntoTextBlocks');
 import type {BlockMap} from 'BlockMap';
 const isEventHandled = require('isEventHandled');
 
+const ReactDOM = require('ReactDOM');
+const UserAgent = require('UserAgent');
+
+const doesNotSupportHTMLFromClipboard =
+  UserAgent.isBrowser('IE')
+  || UserAgent.isBrowser('Edge')
+  || UserAgent.isBrowser('Safari');
+
 /**
  * Paste content.
  */
 function editOnPaste(e: SyntheticClipboardEvent): void {
-  e.preventDefault();
   var data = new DataTransfer(e.clipboardData);
 
   // Get files, unless this is likely to be a string the user wants inline.
@@ -38,6 +45,7 @@ function editOnPaste(e: SyntheticClipboardEvent): void {
     var files = data.getFiles();
     var defaultFileText = data.getText();
     if (files.length > 0) {
+      e.preventDefault();
       // Allow customized paste handling for images, etc. Otherwise, fall
       // through to insert text contents into the editor.
       if (
@@ -85,9 +93,53 @@ function editOnPaste(e: SyntheticClipboardEvent): void {
     }
   }
 
-  let textBlocks: Array<string> = [];
   const text = data.getText();
-  const html = data.getHTML();
+  let html = data.getHTML();
+
+  // Some browsers (IE/Edge) not support getting HTML from the clipboard,
+  // but it is possible to get the HTML
+  // if we allow native paste behaviour to occur.
+  // To do so, we take the following steps:
+  // - Create a new (off-screen) contenteditable DOM element
+  //    and redirect focus to it.
+  // - Let native paste happen in the focused element.
+  // - Grab the HTML.
+  // - Remove the extra contenteditable.
+  // - Handle the pasted text in the normal way.
+  if (doesNotSupportHTMLFromClipboard) {
+    let contentContainer = ReactDOM
+        .findDOMNode(this)
+        .getElementsByClassName('public-DraftEditor-content')[0];
+    let clone = contentContainer.cloneNode();
+    clone.setAttribute('class', '');
+    clone.setAttribute(
+        'style',
+        'position: fixed; left: -9999px');
+    contentContainer.parentNode.insertBefore(clone, contentContainer);
+    clone.focus();
+
+    this.setRenderGuard();
+    this.setMode('paste');
+
+    // Let native paste behaviour occur, then get what was pasted from the DOM.
+    setTimeout(() => {
+      html = clone.innerHTML;
+      clone.parentNode.removeChild(clone);
+      this.exitCurrentMode();
+      this.removeRenderGuard();
+      handlePastedText.call(this, data, text, html);
+    }, 0);
+  } else {
+    e.preventDefault();
+    handlePastedText.call(this, data, text, html);
+  }
+}
+
+function handlePastedText(
+    data: DataTransfer,
+    text: ?string,
+    html: ?string
+): void {
 
   if (
     this.props.handlePastedText &&
@@ -96,6 +148,7 @@ function editOnPaste(e: SyntheticClipboardEvent): void {
     return;
   }
 
+  let textBlocks: Array<string> = [];
   if (text) {
     textBlocks = splitTextIntoTextBlocks(text);
   }
