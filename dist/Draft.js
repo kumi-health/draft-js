@@ -10730,7 +10730,9 @@ var Draft =
 	    // other than the node we are selecting. This should only occur in Firefox,
 	    // since it is the only browser to support multiple selections.
 	    // See https://bugzilla.mozilla.org/show_bug.cgi?id=921444.
-	    selection.extend(node, offset);
+	    if (selection.type !== 'None' && selection.rangeCount !== 0) {
+	      selection.extend(node, offset);
+	    }
 	  } else {
 	    // IE doesn't support extend. This will mean no backward selection.
 	    // Extract the existing selection range and add focus to it.
