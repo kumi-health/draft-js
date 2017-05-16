@@ -10720,6 +10720,10 @@ var Draft =
 	  }
 	}
 
+	function getNodeLength(node) {
+	  return node.nodeValue === null ? node.childNodes.length : node.nodeValue.length;
+	}
+
 	/**
 	 * Extend selection towards focus point.
 	 */
@@ -10730,7 +10734,7 @@ var Draft =
 	    // other than the node we are selecting. This should only occur in Firefox,
 	    // since it is the only browser to support multiple selections.
 	    // See https://bugzilla.mozilla.org/show_bug.cgi?id=921444.
-	    if (selection.type !== 'None' && selection.rangeCount !== 0) {
+	    if (selection.type !== 'None' && selection.rangeCount !== 0 && offset <= getNodeLength(node)) {
 	      selection.extend(node, offset);
 	    }
 	  } else {
